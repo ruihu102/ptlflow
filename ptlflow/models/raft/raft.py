@@ -114,8 +114,8 @@ class RAFT(BaseModel):
 
     def forward(self, inputs, flow_init=None):
         """ Estimate optical flow between pair of frames """
-        image1 = inputs['images'][:, 0]
-        image2 = inputs['images'][:, 1]
+        image1 = inputs[:,:3]#['images'][:, 0]
+        image2 = inputs[:,3:]#['images'][:, 1]
 
         image1 = 2 * image1 - 1.0
         image2 = 2 * image2 - 1.0

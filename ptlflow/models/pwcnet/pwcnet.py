@@ -177,8 +177,8 @@ class PWCNet(BaseModel):
 
 
     def forward(self, inputs):
-        im1 = inputs['images'][:, 0]
-        im2 = inputs['images'][:, 1]
+        im1 = inputs[:,:3,:,:]#inputs['images'][:, 0]
+        im2 = inputs[:,3:,:,:]#inputs['images'][:, 1]
         
         c11 = self.conv1b(self.conv1aa(self.conv1a(im1)))
         c21 = self.conv1b(self.conv1aa(self.conv1a(im2)))

@@ -166,8 +166,8 @@ class FastFlowNet(BaseModel):
         return output
 
     def forward(self, inputs):
-        img1 = inputs['images'][:, 0]
-        img2 = inputs['images'][:, 1]
+        img1 = inputs[:,:3,:,:]#inputs['images'][:, 0]
+        img2 = inputs[:,3:,:,:]#inputs['images'][:, 1]
 
         img1, img2, _ = centralize(img1, img2)
         

@@ -40,6 +40,8 @@ from ptlflow.utils.flow_utils import flow_to_rgb, flow_write
 from ptlflow.utils.io_adapter import IOAdapter
 from ptlflow.utils.utils import get_list_of_available_models_list, tensor_dict_to_numpy
 
+import time
+
 
 def _init_parser() -> ArgumentParser:
     parser = ArgumentParser()
@@ -109,8 +111,10 @@ def infer(
             break
 
         inputs = io_adapter.prepare_inputs([prev_img, img])
+        start = time.time()
         preds = model(inputs)
-
+        end = time.time()
+        print('Processing time: ',end-start)
         preds = io_adapter.unpad_and_unscale(preds)
         preds_npy = tensor_dict_to_numpy(preds)
         preds_npy['flows_viz'] = flow_to_rgb(preds_npy['flows'])[:, :, ::-1]
@@ -299,5 +303,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     model = get_model(sys.argv[1], args.pretrained_ckpt, args)
-
-    infer(args, model)
+    dummy_input = torch.randn(1,6,1080,1920)
+    torch.onnx.export(model,dummy_input,'raft1080p.onnx',verbose=True,opset_version=16)
+    #infer(args, model)
