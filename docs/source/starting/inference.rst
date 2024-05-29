@@ -5,7 +5,7 @@ Predict optical flow with a pretrained model
 infer.py
 ========
 
-`[source code] <https://github.com/hmorimitsu/ptlflow/tree/master/infer.py>`__
+`[source code] <https://github.com/hmorimitsu/ptlflow/tree/main/infer.py>`__
 
 We provide a script for making it easier to perform inference on different inputs.
 Read :ref:`initial-scripts` to know how to download it.
@@ -69,9 +69,6 @@ The code below shows a way to do this:
 
     # Forward the inputs through the model
     predictions = model(inputs)
-
-    # Remove extra padding that may have been added to the inputs
-    predictions = io_adapter.unpad_and_unscale(predictions)
 
     # The output is a dict with possibly several keys,
     # but it should always store the optical flow prediction in a key called 'flows'.

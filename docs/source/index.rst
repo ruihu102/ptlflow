@@ -45,6 +45,7 @@ use the its original code.
    starting/validation
    starting/training
    starting/testing
+   starting/benchmark
 
 .. toctree::
    :maxdepth: 1
@@ -65,9 +66,8 @@ use the its original code.
 
    results/accuracy_epe
    results/accuracy_epe_outlier
-   results/accuracy_plot
-   results/speed
-   results/speed_plot
+   results/result_plots
+   results/model_benchmark
 
 .. toctree::
    :maxdepth: 1

@@ -16,13 +16,11 @@
 
 from pathlib import Path
 import shutil
-import warnings
 
 import pandas as pd
 import pytest
-with warnings.catch_warnings():
-    warnings.simplefilter('ignore')  # Workaround until pl stop raising the metrics deprecation warning
-    import pytorch_lightning as pl
+
+import lightning.pytorch as pl
 import torch
 
 import ptlflow
@@ -32,11 +30,42 @@ from ptlflow.utils.dummy_datasets import write_flying_chairs2
 from ptlflow.utils.utils import make_divisible
 
 TRAIN_EPOCHS = 1
-DATASET = 'overfit'
+DATASET = "overfit"
 
 EXCLUDE_MODELS = [
-    'scv4', 'scv8'  # Has additional requirements
-]
+    "matchflow",
+    "matchflow_raft",
+    "neuflow",  # requires torch 2.X
+    "scv4",
+    "scv8",
+    "separableflow",
+]  # Has additional requirements
+
+EXCLUDE_MODELS_FP16 = [
+    "lcv_raft",
+    "lcv_raft_small",
+    "matchflow",
+    "matchflow_raft",
+    "neuflow",  # requires torch 2.X
+    "scv4",
+    "scv8",
+    "separableflow",
+]  # Some operations do not support fp16
+
+MODEL_ARGS = {
+    "ccmr": {"alternate_corr": False},
+    "ccmr+": {"alternate_corr": False},
+    "flowformer": {"use_tile_input": False},
+    "flowformer++": {"use_tile_input": False},
+    "ms_raft+": {"alternate_corr": False},
+    "rapidflow": {"corr_mode": "allpairs"},
+    "rapidflow_it1": {"corr_mode": "allpairs"},
+    "rapidflow_it2": {"corr_mode": "allpairs"},
+    "rapidflow_it3": {"corr_mode": "allpairs"},
+    "rapidflow_it6": {"corr_mode": "allpairs"},
+    "rapidflow_it12": {"corr_mode": "allpairs"},
+    "rpknet": {"corr_mode": "allpairs"},
+}
 
 
 def test_forward() -> None:
@@ -45,23 +74,67 @@ def test_forward() -> None:
         if mname in EXCLUDE_MODELS:
             continue
 
-        try:
-            model = ptlflow.get_model(mname)
-            model = model.eval()
+        print(mname)
+        model_ref = ptlflow.get_model_reference(mname)
+        parser = model_ref.add_model_specific_args()
+        args = parser.parse_args([])
 
-            s = make_divisible(128, model.output_stride)
-            inputs = {'images': torch.rand(1, 2, 3, s, s)}
+        if mname in MODEL_ARGS:
+            for name, val in MODEL_ARGS[mname].items():
+                setattr(args, name, val)
+
+        model = ptlflow.get_model(mname, args=args)
+        model = model.eval()
+
+        s = make_divisible(256, model.output_stride)
+        num_images = 2
+        if mname in ["videoflow_bof", "videoflow_mof"]:
+            num_images = 3
+        inputs = {"images": torch.rand(1, num_images, 3, s, s)}
+
+        if torch.cuda.is_available():
+            model = model.cuda()
+            inputs["images"] = inputs["images"].cuda()
+
+        model(inputs)
+
+
+def test_forward_fp16() -> None:
+    if torch.cuda.is_available():
+        model_names = ptlflow.models_dict.keys()
+        for mname in model_names:
+            if mname in EXCLUDE_MODELS_FP16:
+                continue
+
+            print(mname)
+            model_ref = ptlflow.get_model_reference(mname)
+            parser = model_ref.add_model_specific_args()
+            args = parser.parse_args([])
+
+            if mname in MODEL_ARGS:
+                for name, val in MODEL_ARGS[mname].items():
+                    setattr(args, name, val)
+
+            model = ptlflow.get_model(mname, args=args)
+            model = model.eval()
+            model = model.half()
+
+            s = make_divisible(256, model.output_stride)
+            num_images = 2
+            if mname in ["videoflow_bof", "videoflow_mof"]:
+                num_images = 3
+            inputs = {"images": torch.rand(1, num_images, 3, s, s)}
 
             if torch.cuda.is_available():
                 model = model.cuda()
-                inputs['images'] = inputs['images'].cuda()
+                inputs["images"] = inputs["images"].cuda().half()
 
             model(inputs)
-        except (ImportError, RuntimeError):
-            continue
 
 
-@pytest.mark.skip(reason='Requires too many resources. Use only on machines with large GPUs.')
+@pytest.mark.skip(
+    reason="Requires too many resources. Use only on machines with large GPUs."
+)
 def test_train(tmp_path: Path):
     write_flying_chairs2(tmp_path)
 
@@ -89,9 +162,9 @@ def _train_one_pass(tmp_path: Path, model_name: str) -> None:
     args.log_dir = tmp_path / model_name
     args.max_epochs = 1
     args.train_batch_size = 1
-    args.train_dataset = 'overfit-chairs2'
-    args.val_dataset = 'none'
-    args.flying_chairs2_root_dir = tmp_path / 'FlyingChairs2'
+    args.train_dataset = "overfit-chairs2"
+    args.val_dataset = "none"
+    args.flying_chairs2_root_dir = tmp_path / "FlyingChairs2"
     args.train_crop_size = (256, 256)
     if torch.cuda.is_available():
         args.gpus = 1
@@ -102,9 +175,9 @@ def _train_one_pass(tmp_path: Path, model_name: str) -> None:
         pass  # When the model has no loss function
 
 
-@pytest.mark.skip(reason='It takes too long. To be used sporadically.')
+@pytest.mark.skip(reason="It takes too long. To be used sporadically.")
 def test_overfit(tmp_path: Path) -> None:
-    print('Saving outputs to ' + str(tmp_path))
+    print("Saving outputs to " + str(tmp_path))
 
     model_names = ptlflow.models_dict.keys()
     for mname in model_names:
@@ -127,7 +200,7 @@ def _overfit_model(tmp_path: Path, model_name: str) -> float:
         _train_overfit(tmp_path, model_name)
 
         metrics_df = _validate(tmp_path, model_name)
-        epe = metrics_df.loc[0, 'overfit-val/epe']
+        epe = metrics_df.loc[0, "overfit-val/epe"]
     except AssertionError:
         epe = -1
     return epe
@@ -146,9 +219,9 @@ def _train_overfit(tmp_path: Path, model_name: str) -> None:
     args.log_dir = tmp_path / model_name
     args.max_epochs = 100
     args.train_batch_size = 1
-    args.train_dataset = 'overfit-sintel'
-    args.val_dataset = 'none'
-    args.mpi_sintel_root_dir = Path('tests/data/ptlflow/models/sintel')
+    args.train_dataset = "overfit-sintel"
+    args.val_dataset = "none"
+    args.mpi_sintel_root_dir = Path("tests/data/ptlflow/models/sintel")
     if torch.cuda.is_available():
         args.gpus = 1
 
@@ -164,9 +237,11 @@ def _validate(tmp_path: Path, model_name: str) -> pd.DataFrame:
     args = parser.parse_args([model_name])
 
     args.output_path = tmp_path / model_name
-    args.mpi_sintel_root_dir = Path('tests/data/ptlflow/models/sintel')
+    args.mpi_sintel_root_dir = Path("tests/data/ptlflow/models/sintel")
     args.val_dataset = DATASET
-    args.pretrained_ckpt = str(list((tmp_path / model_name).glob('**/*_last_*.ckpt'))[0])
+    args.pretrained_ckpt = str(
+        list((tmp_path / model_name).glob("**/*_last_*.ckpt"))[0]
+    )
     args.write_viz = True
 
     model = ptlflow.get_model(model_name, args.pretrained_ckpt, args)
